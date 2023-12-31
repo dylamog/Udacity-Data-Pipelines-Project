@@ -34,27 +34,9 @@ def final_project():
 
     start_operator = DummyOperator(task_id='Begin_execution')
 
-    create_tables_task = PostgresOperator(
-    task_id='Create_tables',
-    postgres_conn_id='redshift',
-    sql=[
-        SqlQueries.staging_events_table_drop,
-        SqlQueries.staging_songs_table_drop, 
-        SqlQueries.songplay_table_drop,
-        SqlQueries.user_table_drop,
-        SqlQueries.song_table_drop,
-        SqlQueries.artist_table_drop, 
-        SqlQueries.time_table_drop,
-        SqlQueries.staging_events_table_create,
-        SqlQueries.staging_songs_table_create,
-        SqlQueries.songplay_table_create,
-        SqlQueries.user_table_create,
-        SqlQueries.song_table_create,
-        SqlQueries.artist_table_create,
-        SqlQueries.time_table_create
-    ]
+    
         
-    )
+    
     stage_events_to_redshift = StageToRedshiftOperator(
         task_id="Stage_events",
         table="staging_events",
@@ -120,18 +102,32 @@ def final_project():
         sql_statement=SqlQueries.time_table_insert,
         append_only=False
     )
-
+    tests = [
+   
+    # users
+    {'check_sql': 'SELECT COUNT(*) FROM users WHERE user_id IS NULL', 'expected_result': 0},
+    {'check_sql': 'SELECT COUNT(*) FROM users WHERE first_name IS NULL AND last_name IS NULL', 'expected_result': 0},    
+    # songs
+    {'check_sql': 'SELECT COUNT(*) FROM songs WHERE song_id IS NULL', 'expected_result': 0},
+    {'check_sql': 'SELECT COUNT(*) FROM songs WHERE title IS NULL', 'expected_result': 0},    
+    # artists
+    {'check_sql': 'SELECT COUNT(*) FROM artists WHERE artist_id IS NULL', 'expected_result': 0},
+    {'check_sql': 'SELECT COUNT(*) FROM artists WHERE artist_name IS NULL', 'expected_result': 0},    
+    # time
+    {'check_sql': 'SELECT COUNT(*) FROM time WHERE start_time IS NULL', 'expected_result': 0},
+    {'check_sql': 'SELECT COUNT(DISTINCT hour) FROM time', 'expected_result': 24},
+    ]
     run_quality_checks = DataQualityOperator(
         task_id='Run_data_quality_checks',
         redshift_conn_id="redshift",
-        tables=[ "songplays", "songs", "artists",  "time", "users"]
+        tests = tests
     )
     
     end_operator = DummyOperator(task_id='End_execution')
 
-    start_operator >> create_tables_task
-    create_tables_task >> stage_events_to_redshift
-    create_tables_task >> stage_songs_to_redshift
+    
+    start_operator >> stage_events_to_redshift
+    start_operator >> stage_songs_to_redshift
     stage_events_to_redshift >> load_songplays_table
     stage_songs_to_redshift >> load_songplays_table
     load_songplays_table >> [load_user_dimension_table, load_song_dimension_table, load_artist_dimension_table, load_time_dimension_table] \
